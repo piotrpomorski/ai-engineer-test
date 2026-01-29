@@ -17,7 +17,7 @@ This is a voyage charter party agreement – a standard maritime contract used i
 1. **Extract legal clauses from Part II** of the document (**Pages 6–39**)
 2. **For each clause, extract:**
    - `id`: The clause identifier (e.g., "1", "2", "3", etc.)
-   - `title`: The clause title/heading (usually in bold)
+   - `title`: The clause title/heading
    - `text`: The full clause text content
 
 3. **Output the extracted clauses** in a structured JSON format. 
