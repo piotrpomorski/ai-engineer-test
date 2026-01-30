@@ -166,6 +166,11 @@ Environment variables:
 
 
 if __name__ == "__main__":
+    # Load environment variables from .env file if present
+    from dotenv import load_dotenv
+
+    load_dotenv()
+
     args = parse_args()
 
     # Set log level

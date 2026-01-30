@@ -10,6 +10,7 @@ dependencies = [
     "langchain-community==0.4.1",
     "pdf2image>=1.16.0",
     "Pillow>=10.0.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]

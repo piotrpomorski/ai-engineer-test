@@ -12,6 +12,7 @@ dependencies = [
     { name = "langchain-community" },
     { name = "pdf2image" },
     { name = "pillow" },
+    { name = "python-dotenv" },
 ]
 
 [package.optional-dependencies]
@@ -31,6 +32,7 @@ requires-dist = [
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8.0" },
     { name = "pdf2image", specifier = ">=1.16.0" },
     { name = "pillow", specifier = ">=10.0.0" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
     { name = "types-pillow", marker = "extra == 'dev'" },
 ]
