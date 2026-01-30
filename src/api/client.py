@@ -180,19 +180,10 @@ class ClaudeVisionClient:
                 extra_headers={"anthropic-beta": "pdfs-2024-09-25"},
             )
 
-            # Log token usage and estimate cost
+            # Log token usage
             input_tokens = response.usage.input_tokens
             output_tokens = response.usage.output_tokens
-            # Claude claude-sonnet-4-5 pricing: $3/M input, $15/M output
-            input_cost = (input_tokens / 1_000_000) * 3
-            output_cost = (output_tokens / 1_000_000) * 15
-            total_cost = input_cost + output_cost
-
             logger.info(f"Token usage - Input: {input_tokens}, Output: {output_tokens}")
-            logger.info(
-                f"Estimated cost: ${total_cost:.4f} "
-                f"(input: ${input_cost:.4f}, output: ${output_cost:.4f})"
-            )
 
             # Check stop reason
             if response.stop_reason == "max_tokens":

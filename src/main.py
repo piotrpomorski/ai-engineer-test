@@ -21,7 +21,9 @@ from src.pdf_converter import ImageValidationError, PDFConversionError, PDFConve
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger(__name__)
 
@@ -51,12 +53,12 @@ def main(
     logger.info("=" * 60)
 
     # Step 1: Validate environment
-    logger.info("Step 1: Validating environment...")
+    logger.info("Step 1/5: Validating environment...")
     validate_environment()
     logger.info("Environment validation passed")
 
     # Step 2: Convert PDF to images
-    logger.info("Step 2: Converting PDF to images...")
+    logger.info("Step 2/5: Converting PDF to images...")
     converter = PDFConverter()
     pdf_pages = converter.convert_pdf_to_images(pdf_path)
 
@@ -66,7 +68,7 @@ def main(
     logger.info(f"Converted {total_pages} pages, total size: {total_size_mb:.2f} MB")
 
     # Step 3: Extract clauses via Claude Vision API
-    logger.info("Step 3: Sending images to Claude Vision API...")
+    logger.info("Step 3/5: Sending images to Claude Vision API...")
     client = ClaudeVisionClient()
     result = client.extract_clauses(pdf_pages)
 
@@ -75,43 +77,40 @@ def main(
     logger.info(f"Extracted {clause_count} clauses from document")
 
     # Step 4: Save raw response for Phase 3 processing
-    logger.info(f"Step 4: Saving raw response to {output_path}...")
+    logger.info(f"Step 4/5: Saving raw response to {output_path}...")
     output_file = Path(output_path)
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, ensure_ascii=False)
-    logger.info(f"Raw response saved ({output_file.stat().st_size} bytes)")
+    raw_size_kb = output_file.stat().st_size / 1024
+    logger.info(f"Raw response saved ({raw_size_kb:.2f} KB)")
 
     # Step 5: Transform raw response to final output format
-    logger.info("Step 5: Transforming to final output format...")
-    try:
-        validate_raw_response(result)
-        clauses = transform_raw_to_output(result)
+    logger.info("Step 5/5: Transforming to final output format...")
+    validate_raw_response(result)
+    clauses = transform_raw_to_output(result)
 
-        # Serialize to JSON
-        output_data = [clause.model_dump() for clause in clauses]
+    # Serialize to JSON
+    output_data = [clause.model_dump() for clause in clauses]
 
-        # Write to final output file
-        final_output_file = Path(final_output_path)
-        with open(final_output_file, "w", encoding="utf-8") as f:
-            json.dump(output_data, f, indent=2, ensure_ascii=False)
+    # Write to final output file
+    final_output_file = Path(final_output_path)
+    with open(final_output_file, "w", encoding="utf-8") as f:
+        json.dump(output_data, f, indent=2, ensure_ascii=False)
 
-        final_size_kb = final_output_file.stat().st_size / 1024
-        logger.info(
-            f"Final output saved to {final_output_path} "
-            f"({len(clauses)} clauses, {final_size_kb:.2f} KB)"
-        )
-
-    except ValueError as e:
-        logger.error(f"Raw response validation failed: {e}")
-        raise
+    final_size_kb = final_output_file.stat().st_size / 1024
+    logger.info(
+        f"Final output saved to {final_output_path} "
+        f"({len(clauses)} clauses, {final_size_kb:.2f} KB)"
+    )
 
     # Final summary
     logger.info("=" * 60)
-    logger.info("Pipeline completed successfully!")
-    logger.info(f"  - Pages processed: {total_pages}")
-    logger.info(f"  - Clauses extracted: {clause_count}")
-    logger.info(f"  - Raw output: {output_path}")
-    logger.info(f"  - Final output: {final_output_path}")
+    logger.info("SUCCESS: Pipeline completed!")
+    logger.info("=" * 60)
+    logger.info(f"  Pages processed:   {total_pages}")
+    logger.info(f"  Clauses extracted: {clause_count}")
+    logger.info(f"  Raw output:        {output_path} ({raw_size_kb:.2f} KB)")
+    logger.info(f"  Final output:      {final_output_path} ({final_size_kb:.2f} KB)")
     logger.info("=" * 60)
 
     return result
