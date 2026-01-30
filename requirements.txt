@@ -1,0 +1,14 @@
+# Runtime dependencies for Charter Party Document Parser
+# Install with: pip install -r requirements.txt
+
+# Anthropic SDK for Claude Vision API
+anthropic>=0.40.0
+
+# PDF to image conversion
+pdf2image>=1.16.0
+
+# Image processing
+Pillow>=10.0.0
+
+# Data validation
+pydantic>=2.0.0
