@@ -8,7 +8,7 @@ import base64
 import logging
 from io import BytesIO
 from pathlib import Path
-from typing import List
+from typing import Any
 
 from pdf2image import convert_from_path
 from PIL import Image
@@ -45,9 +45,9 @@ class PDFConverter:
     - Provides structured logging for each page conversion
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the PDF converter."""
-        self.images = []
+        self.images: list[dict[str, Any]] = []
 
     def convert_pdf_to_images(
         self,
@@ -55,7 +55,7 @@ class PDFConverter:
         first_page: int = 6,
         last_page: int = 39,
         dpi: int = 150
-    ) -> List[dict]:
+    ) -> list[dict[str, Any]]:
         """Convert PDF pages to in-memory images.
 
         Args:

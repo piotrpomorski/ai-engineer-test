@@ -27,7 +27,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def main(pdf_path: str, output_path: str = "raw_response.json", final_output_path: str = "output.json") -> dict:
+from typing import Any
+
+
+def main(pdf_path: str, output_path: str = "raw_response.json", final_output_path: str = "output.json") -> dict[str, Any]:
     """Execute the complete clause extraction pipeline.
 
     Args:

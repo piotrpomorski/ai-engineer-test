@@ -8,7 +8,7 @@ import json
 import logging
 import os
 import sys
-from typing import Any
+from typing import Any, cast
 
 import anthropic
 from anthropic import (
@@ -20,6 +20,7 @@ from anthropic import (
     AuthenticationError,
     BadRequestError,
 )
+from anthropic.types import MessageParam, ContentBlockParam
 
 from src.api.vision import build_vision_request
 from src.api.prompts import JSON_SCHEMA
@@ -158,13 +159,16 @@ class ClaudeVisionClient:
         logger.info(f"Building vision request for {len(pdf_pages)} pages")
         content = build_vision_request(pdf_pages)
 
+        # Cast content to expected type for Anthropic SDK
+        message_content = cast(list[ContentBlockParam], content)
+
         try:
             # Make API call with structured output
             logger.info(f"Sending request to Claude API (model: {self.model})")
             response = self._client.messages.create(
                 model=self.model,
                 max_tokens=self.max_tokens,
-                messages=[{"role": "user", "content": content}],
+                messages=[{"role": "user", "content": message_content}],
                 extra_headers={"anthropic-beta": "pdfs-2024-09-25"},
             )
 
@@ -181,26 +185,25 @@ class ClaudeVisionClient:
 
             # Check stop reason
             if response.stop_reason == "max_tokens":
-                raise APIError(
-                    message="Response truncated due to max_tokens limit. Increase max_tokens or reduce input.",
-                    request=None,
-                    body=None,
+                raise ValueError(
+                    "Response truncated due to max_tokens limit. Increase max_tokens or reduce input."
                 )
 
             # Parse JSON response
-            response_text = response.content[0].text
+            first_block = response.content[0]
+            if not hasattr(first_block, "text"):
+                raise ValueError(
+                    f"Expected TextBlock but got {type(first_block).__name__}"
+                )
+            response_text: str = first_block.text
             logger.info(f"Response received ({len(response_text)} chars)")
 
             try:
-                result = json.loads(response_text)
+                result: dict[str, Any] = json.loads(response_text)
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse JSON response: {e}")
                 logger.error(f"Response text: {response_text[:500]}...")
-                raise APIError(
-                    message=f"Invalid JSON in response: {e}",
-                    request=None,
-                    body=None,
-                )
+                raise ValueError(f"Invalid JSON in response: {e}") from e
 
             logger.info(f"Successfully extracted {len(result.get('clauses', []))} clauses")
             return result

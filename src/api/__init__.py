@@ -12,12 +12,17 @@ Exports:
 __all__ = ["ClaudeVisionClient", "validate_environment"]
 
 
-def __getattr__(name: str):
+from typing import Any
+
+
+def __getattr__(name: str) -> Any:
     """Lazy import of module contents."""
     if name == "ClaudeVisionClient":
         from src.api.client import ClaudeVisionClient
+
         return ClaudeVisionClient
     elif name == "validate_environment":
         from src.api.client import validate_environment
+
         return validate_environment
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
