@@ -148,24 +148,39 @@ class ClaudeVisionClient:
         """
         # Validate input
         if not pdf_pages:
-            raise ValueError("pdf_pages cannot be empty")
+            raise ValueError(
+                "pdf_pages cannot be empty. "
+                "Ensure PDF conversion produced at least one page."
+            )
 
         if not isinstance(pdf_pages, list):
-            raise ValueError("pdf_pages must be a list")
+            raise ValueError(
+                f"pdf_pages must be a list, got {type(pdf_pages).__name__}"
+            )
 
         # Validate each page has required fields
         required_fields = {"page_number", "image_base64"}
         for i, page in enumerate(pdf_pages):
             if not isinstance(page, dict):
-                raise ValueError(f"pdf_pages[{i}] must be a dictionary")
+                raise ValueError(
+                    f"pdf_pages[{i}] must be a dictionary, got {type(page).__name__}"
+                )
 
             missing = required_fields - set(page.keys())
             if missing:
-                raise ValueError(f"pdf_pages[{i}] missing required fields: {missing}")
+                raise ValueError(
+                    f"pdf_pages[{i}] missing required fields: {missing}. "
+                    f"Available fields: {set(page.keys())}"
+                )
 
         # Build multi-image content array with page labels
         logger.info(f"Building vision request for {len(pdf_pages)} pages")
         content = build_vision_request(pdf_pages)
+        logger.debug(f"Request contains {len(content)} content blocks")
+
+        # Calculate total request size for debugging
+        total_base64_kb = sum(len(p.get("image_base64", "")) / 1024 for p in pdf_pages)
+        logger.debug(f"Total base64 image data: {total_base64_kb:.1f} KB")
 
         # Cast content to expected type for Anthropic SDK
         message_content = cast(list[ContentBlockParam], content)
@@ -173,6 +188,7 @@ class ClaudeVisionClient:
         try:
             # Make API call with structured output
             logger.info(f"Sending request to Claude API (model: {self.model})")
+            logger.debug(f"max_tokens={self.max_tokens}, timeout configured")
             response = self._client.messages.create(
                 model=self.model,
                 max_tokens=self.max_tokens,
@@ -185,11 +201,15 @@ class ClaudeVisionClient:
             output_tokens = response.usage.output_tokens
             logger.info(f"Token usage - Input: {input_tokens}, Output: {output_tokens}")
 
+            # Log response metadata
+            logger.debug(f"Stop reason: {response.stop_reason}")
+
             # Check stop reason
             if response.stop_reason == "max_tokens":
                 raise ValueError(
-                    "Response truncated due to max_tokens limit. "
-                    "Increase max_tokens or reduce input."
+                    f"Response truncated due to max_tokens limit ({self.max_tokens}). "
+                    f"Used {output_tokens} output tokens. "
+                    f"Increase max_tokens setting or reduce input document size."
                 )
 
             # Parse JSON response
@@ -215,17 +235,17 @@ class ClaudeVisionClient:
 
         except TRANSIENT_ERRORS as e:
             # SDK already retried these - log and re-raise
-            self._log_error(e, "after SDK retries")
+            self._log_error(e, "transient error after SDK retries - will not retry")
             raise
 
         except PERMANENT_ERRORS as e:
             # Permanent errors - fail fast
-            self._log_error(e, "permanent error")
+            self._log_error(e, "permanent error - check API key/request format")
             raise
 
         except APIError as e:
             # Other API errors
-            self._log_error(e, "API error")
+            self._log_error(e, "unexpected API error")
             raise
 
     def _classify_error(self, error: Exception) -> str:
@@ -259,11 +279,22 @@ class ClaudeVisionClient:
 
         # Extract request ID if available
         request_id = "N/A"
+        status_code = "N/A"
         if hasattr(error, "response") and error.response is not None:
             request_id = error.response.headers.get("request-id", "N/A")
+            status_code = str(error.response.status_code)
 
-        print(
-            f"API Error [{error_type}] {context}: {type(error).__name__}: {error}",
-            file=sys.stderr,
+        logger.error(
+            f"API Error [{error_type}] {context}: {type(error).__name__}: {error}"
         )
-        print(f"  Request ID: {request_id}", file=sys.stderr)
+        logger.error(f"  Status code: {status_code}, Request ID: {request_id}")
+
+        # Provide actionable guidance based on error type
+        if isinstance(error, AuthenticationError):
+            logger.error("  Action: Verify ANTHROPIC_API_KEY is set and valid")
+        elif isinstance(error, RateLimitError):
+            logger.error("  Action: Wait and retry, or reduce request frequency")
+        elif isinstance(error, APITimeoutError):
+            logger.error("  Action: Increase timeout or reduce document size")
+        elif isinstance(error, BadRequestError):
+            logger.error("  Action: Check request format and image encoding")

@@ -13,9 +13,6 @@ from typing import Any
 from pdf2image import convert_from_path
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
 logger = logging.getLogger(__name__)
 
 # Claude Vision API limits
@@ -76,18 +73,26 @@ class PDFConverter:
         # Validate PDF file exists
         pdf_file = Path(pdf_path)
         if not pdf_file.exists():
-            raise FileNotFoundError(f"PDF file not found: {pdf_path}")
+            raise FileNotFoundError(
+                f"PDF file not found: {pdf_path}. "
+                f"Please verify the file path and ensure the file exists."
+            )
 
         logger.info(f"Converting PDF: {pdf_path}")
         logger.info(f"Extracting pages {first_page}-{last_page} at {dpi} DPI")
 
         try:
             # Convert PDF pages to PIL Images
+            logger.debug(f"Calling pdf2image.convert_from_path with dpi={dpi}")
             pil_images = convert_from_path(
                 pdf_path, dpi=dpi, first_page=first_page, last_page=last_page
             )
+            logger.debug(f"pdf2image returned {len(pil_images)} images")
         except Exception as e:
-            raise PDFConversionError(f"Failed to convert PDF: {e}")
+            raise PDFConversionError(
+                f"Failed to convert PDF '{pdf_path}': {e}. "
+                f"Ensure poppler-utils is installed (brew install poppler on macOS)."
+            ) from e
 
         # Process each image
         self.images = []
@@ -96,10 +101,13 @@ class PDFConverter:
 
             # Validate dimensions
             width, height = pil_image.size
+            logger.debug(f"Page {page_number}: dimensions {width}x{height}")
             if width > MAX_IMAGE_DIMENSION or height > MAX_IMAGE_DIMENSION:
+                max_dim = MAX_IMAGE_DIMENSION
                 raise ImageValidationError(
-                    f"Page {page_number}: dimensions {width}x{height} "
-                    f"exceed limit {MAX_IMAGE_DIMENSION}x{MAX_IMAGE_DIMENSION}"
+                    f"Page {page_number}: dimensions {width}x{height} exceed "
+                    f"Claude Vision limit of {max_dim}x{max_dim} pixels. "
+                    f"Try reducing the DPI setting (current: {dpi})."
                 )
 
             # Convert to PNG bytes
@@ -110,6 +118,10 @@ class PDFConverter:
 
             # Base64 encode
             image_base64 = base64.b64encode(img_bytes).decode("utf-8")
+            base64_kb = len(image_base64) / 1024
+            logger.debug(
+                f"Page {page_number}: {size_kb:.0f}KB raw, {base64_kb:.0f}KB b64"
+            )
 
             # Log conversion
             logger.info(

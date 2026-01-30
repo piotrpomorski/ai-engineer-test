@@ -35,14 +35,26 @@ def validate_raw_response(raw_data: dict[str, Any]) -> None:
         ValueError: If structure is malformed
     """
     if not isinstance(raw_data, dict):
-        raise ValueError("Raw response must be a dictionary")
+        raise ValueError(
+            f"Raw response must be a dictionary, got {type(raw_data).__name__}. "
+            f"Check that the API returned valid JSON."
+        )
 
     if "clauses" not in raw_data:
-        raise ValueError("Raw response missing 'clauses' key")
+        available_keys = list(raw_data.keys())
+        raise ValueError(
+            f"Raw response missing 'clauses' key. "
+            f"Available keys: {available_keys}. "
+            f"API response format may have changed."
+        )
 
     if not isinstance(raw_data["clauses"], list):
-        raise ValueError("Raw response 'clauses' must be an array")
+        raise ValueError(
+            f"Raw response 'clauses' must be an array, "
+            f"got {type(raw_data['clauses']).__name__}"
+        )
 
+    logger.debug("Raw response structure validated")
     logger.info(
         f"Raw response validation passed: {len(raw_data['clauses'])} clauses found"
     )
@@ -68,25 +80,41 @@ def transform_raw_to_output(raw_data: dict[str, Any]) -> list[Clause]:
     """
     clauses: list[Clause] = []
     raw_clauses = raw_data.get("clauses", [])
+    skipped_count = 0
 
-    for raw_clause in raw_clauses:
+    logger.debug(f"Starting transformation of {len(raw_clauses)} raw clauses")
+
+    for idx, raw_clause in enumerate(raw_clauses):
         # Skip clauses with empty text
         text = raw_clause.get("text", "").strip()
         if not text:
             clause_num = raw_clause.get("clause_number", "unknown")
-            logger.warning(f"Skipping clause {clause_num} with empty text")
+            page_num = raw_clause.get("page", "?")
+            logger.warning(
+                f"Skipping clause {clause_num} (page {page_num}): empty text content"
+            )
+            skipped_count += 1
             continue
 
         # Extract id from clause_number
         clause_id = raw_clause.get("clause_number", "").strip()
+        if not clause_id:
+            logger.warning(f"Raw clause at index {idx} has no clause_number")
 
         # Extract title from first line of text (up to first newline/period)
         first_line = text.split("\n")[0]
         title = first_line.split(".")[0].strip()
 
+        logger.debug(
+            f"Clause {clause_id}: title='{title[:50]}...', text_len={len(text)}"
+        )
+
         # Create Clause object
         clause = Clause(id=clause_id, title=title, text=text)
         clauses.append(clause)
+
+    if skipped_count > 0:
+        logger.info(f"Skipped {skipped_count} clauses with empty text")
 
     # Warn if fewer than 10 clauses (suggests extraction failure)
     if len(clauses) < 10:
