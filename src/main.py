@@ -5,6 +5,7 @@ This module provides the main execution pipeline that:
 2. Converts PDF pages to images
 3. Sends images to Claude Vision API
 4. Saves raw extraction response
+5. Transforms raw response to final output format
 """
 
 import argparse
@@ -15,6 +16,7 @@ from pathlib import Path
 
 from src.pdf_converter import PDFConverter, PDFConversionError, ImageValidationError
 from src.api.client import ClaudeVisionClient, validate_environment
+from src.models import transform_raw_to_output, validate_raw_response
 
 
 # Configure logging
@@ -25,12 +27,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def main(pdf_path: str, output_path: str = "raw_response.json") -> dict:
+def main(pdf_path: str, output_path: str = "raw_response.json", final_output_path: str = "output.json") -> dict:
     """Execute the complete clause extraction pipeline.
 
     Args:
         pdf_path: Path to the PDF file to process
         output_path: Path to save the raw JSON response (default: raw_response.json)
+        final_output_path: Path to save the final transformed output (default: output.json)
 
     Returns:
         Dictionary containing extracted clauses
@@ -38,6 +41,7 @@ def main(pdf_path: str, output_path: str = "raw_response.json") -> dict:
     Raises:
         FileNotFoundError: If PDF file doesn't exist (exit code 1)
         RuntimeError: If API call fails (exit code 2)
+        ValueError: If raw response validation fails (exit code 1)
     """
     logger.info("=" * 60)
     logger.info("Charter Party Document Clause Extraction Pipeline")
@@ -74,12 +78,34 @@ def main(pdf_path: str, output_path: str = "raw_response.json") -> dict:
         json.dump(result, f, indent=2, ensure_ascii=False)
     logger.info(f"Raw response saved ({output_file.stat().st_size} bytes)")
 
+    # Step 5: Transform raw response to final output format
+    logger.info(f"Step 5: Transforming to final output format...")
+    try:
+        validate_raw_response(result)
+        clauses = transform_raw_to_output(result)
+
+        # Serialize to JSON
+        output_data = [clause.model_dump() for clause in clauses]
+
+        # Write to final output file
+        final_output_file = Path(final_output_path)
+        with open(final_output_file, 'w', encoding='utf-8') as f:
+            json.dump(output_data, f, indent=2, ensure_ascii=False)
+
+        final_size_kb = final_output_file.stat().st_size / 1024
+        logger.info(f"Final output saved to {final_output_path} ({len(clauses)} clauses, {final_size_kb:.2f} KB)")
+
+    except ValueError as e:
+        logger.error(f"Raw response validation failed: {e}")
+        raise
+
     # Final summary
     logger.info("=" * 60)
     logger.info("Pipeline completed successfully!")
     logger.info(f"  - Pages processed: {total_pages}")
     logger.info(f"  - Clauses extracted: {clause_count}")
-    logger.info(f"  - Output file: {output_path}")
+    logger.info(f"  - Raw output: {output_path}")
+    logger.info(f"  - Final output: {final_output_path}")
     logger.info("=" * 60)
 
     return result
@@ -118,6 +144,12 @@ Environment variables:
     )
 
     parser.add_argument(
+        "--final-output",
+        default="output.json",
+        help="Output path for final transformed JSON (default: output.json)"
+    )
+
+    parser.add_argument(
         "-v", "--verbose",
         action="store_true",
         help="Enable verbose logging (DEBUG level)"
@@ -134,7 +166,7 @@ if __name__ == "__main__":
         logging.getLogger().setLevel(logging.DEBUG)
 
     try:
-        main(args.pdf_path, args.output)
+        main(args.pdf_path, args.output, args.final_output)
         sys.exit(0)
 
     except FileNotFoundError as e:
@@ -147,6 +179,10 @@ if __name__ == "__main__":
 
     except ImageValidationError as e:
         logger.error(f"Image validation failed: {e}")
+        sys.exit(1)
+
+    except ValueError as e:
+        logger.error(f"Validation error: {e}")
         sys.exit(1)
 
     except SystemExit:
