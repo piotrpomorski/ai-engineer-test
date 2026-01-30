@@ -132,3 +132,56 @@ class PDFConverter:
 
         logger.info(f"Successfully converted {len(self.images)} pages")
         return self.images
+
+
+def main(pdf_path: str) -> None:
+    """Main execution function for PDF conversion.
+
+    Args:
+        pdf_path: Path to the PDF file to convert
+
+    Raises:
+        FileNotFoundError: If PDF file does not exist
+        PDFConversionError: If conversion fails
+        ImageValidationError: If image dimensions exceed limits
+    """
+    converter = PDFConverter()
+    images = converter.convert_pdf_to_images(pdf_path)
+
+    # Calculate total size
+    total_size_mb = sum(img['size_kb'] for img in images) / 1024
+
+    # Print summary
+    print(f"\nConverted {len(images)} pages successfully. Total size: {total_size_mb:.2f} MB")
+
+    # Print first and last page info to verify range
+    if images:
+        first = images[0]
+        last = images[-1]
+        print(f"\nFirst page: {first['page_number']} ({first['width']}x{first['height']} pixels, {first['size_kb']:.1f} KB)")
+        print(f"Last page: {last['page_number']} ({last['width']}x{last['height']} pixels, {last['size_kb']:.1f} KB)")
+
+
+if __name__ == '__main__':
+    import sys
+
+    if len(sys.argv) < 2:
+        print("Usage: python -m src.pdf_converter <pdf_path>")
+        sys.exit(1)
+
+    pdf_path = sys.argv[1]
+
+    try:
+        main(pdf_path)
+    except FileNotFoundError as e:
+        logger.error(f"File not found: {e}")
+        sys.exit(1)
+    except PDFConversionError as e:
+        logger.error(f"Conversion failed: {e}")
+        sys.exit(1)
+    except ImageValidationError as e:
+        logger.error(f"Validation failed: {e}")
+        sys.exit(1)
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        sys.exit(1)
