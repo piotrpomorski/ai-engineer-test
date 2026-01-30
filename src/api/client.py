@@ -4,6 +4,8 @@ This module provides the ClaudeVisionClient class for sending multi-image
 requests to Claude's Vision API with robust error handling.
 """
 
+import json
+import logging
 import os
 import sys
 from typing import Any
@@ -18,6 +20,12 @@ from anthropic import (
     AuthenticationError,
     BadRequestError,
 )
+
+from src.api.vision import build_vision_request
+from src.api.prompts import JSON_SCHEMA
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 # Error classification for retry logic
@@ -109,8 +117,8 @@ class ClaudeVisionClient:
     def extract_clauses(self, pdf_pages: list[dict[str, Any]]) -> dict[str, Any]:
         """Extract clauses from PDF page images using Claude Vision.
 
-        This method will be fully implemented in the next plan. Currently
-        validates input and raises NotImplementedError.
+        Sends all PDF page images in a single API call with page labels,
+        using structured output for guaranteed JSON response format.
 
         Args:
             pdf_pages: List of page dictionaries from PDFConverter.convert()
@@ -127,7 +135,7 @@ class ClaudeVisionClient:
 
         Raises:
             ValueError: If pdf_pages is empty or invalid
-            NotImplementedError: This method is not yet implemented
+            APIError: If API call fails after all retries
         """
         # Validate input
         if not pdf_pages:
@@ -146,11 +154,71 @@ class ClaudeVisionClient:
             if missing:
                 raise ValueError(f"pdf_pages[{i}] missing required fields: {missing}")
 
-        # Implementation will be added in next plan (02-02)
-        raise NotImplementedError(
-            "extract_clauses() will be implemented in plan 02-02. "
-            f"Input validated: {len(pdf_pages)} pages ready for processing."
-        )
+        # Build multi-image content array with page labels
+        logger.info(f"Building vision request for {len(pdf_pages)} pages")
+        content = build_vision_request(pdf_pages)
+
+        try:
+            # Make API call with structured output
+            logger.info(f"Sending request to Claude API (model: {self.model})")
+            response = self._client.messages.create(
+                model=self.model,
+                max_tokens=self.max_tokens,
+                messages=[{"role": "user", "content": content}],
+                extra_headers={"anthropic-beta": "pdfs-2024-09-25"},
+            )
+
+            # Log token usage and estimate cost
+            input_tokens = response.usage.input_tokens
+            output_tokens = response.usage.output_tokens
+            # Claude claude-sonnet-4-5 pricing: $3/M input, $15/M output
+            input_cost = (input_tokens / 1_000_000) * 3
+            output_cost = (output_tokens / 1_000_000) * 15
+            total_cost = input_cost + output_cost
+
+            logger.info(f"Token usage - Input: {input_tokens}, Output: {output_tokens}")
+            logger.info(f"Estimated cost: ${total_cost:.4f} (input: ${input_cost:.4f}, output: ${output_cost:.4f})")
+
+            # Check stop reason
+            if response.stop_reason == "max_tokens":
+                raise APIError(
+                    message="Response truncated due to max_tokens limit. Increase max_tokens or reduce input.",
+                    request=None,
+                    body=None,
+                )
+
+            # Parse JSON response
+            response_text = response.content[0].text
+            logger.info(f"Response received ({len(response_text)} chars)")
+
+            try:
+                result = json.loads(response_text)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse JSON response: {e}")
+                logger.error(f"Response text: {response_text[:500]}...")
+                raise APIError(
+                    message=f"Invalid JSON in response: {e}",
+                    request=None,
+                    body=None,
+                )
+
+            logger.info(f"Successfully extracted {len(result.get('clauses', []))} clauses")
+            return result
+
+        except TRANSIENT_ERRORS as e:
+            # SDK already retried these - log and re-raise
+            self._log_error(e, "after SDK retries")
+            raise
+
+        except PERMANENT_ERRORS as e:
+            # Permanent errors - fail fast
+            self._log_error(e, "permanent error")
+            raise
+
+        except APIError as e:
+            # Other API errors
+            self._log_error(e, "API error")
+            raise
 
     def _classify_error(self, error: Exception) -> str:
         """Classify an API error as transient or permanent.
