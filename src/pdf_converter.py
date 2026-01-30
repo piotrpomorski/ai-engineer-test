@@ -11,12 +11,10 @@ from pathlib import Path
 from typing import Any
 
 from pdf2image import convert_from_path
-from PIL import Image
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -26,11 +24,13 @@ MAX_IMAGE_DIMENSION = 8000  # pixels
 
 class PDFConversionError(Exception):
     """Raised when PDF conversion fails."""
+
     pass
 
 
 class ImageValidationError(Exception):
     """Raised when image dimensions exceed Claude's limits."""
+
     pass
 
 
@@ -50,11 +50,7 @@ class PDFConverter:
         self.images: list[dict[str, Any]] = []
 
     def convert_pdf_to_images(
-        self,
-        pdf_path: str,
-        first_page: int = 6,
-        last_page: int = 39,
-        dpi: int = 150
+        self, pdf_path: str, first_page: int = 6, last_page: int = 39, dpi: int = 150
     ) -> list[dict[str, Any]]:
         """Convert PDF pages to in-memory images.
 
@@ -88,10 +84,7 @@ class PDFConverter:
         try:
             # Convert PDF pages to PIL Images
             pil_images = convert_from_path(
-                pdf_path,
-                dpi=dpi,
-                first_page=first_page,
-                last_page=last_page
+                pdf_path, dpi=dpi, first_page=first_page, last_page=last_page
             )
         except Exception as e:
             raise PDFConversionError(f"Failed to convert PDF: {e}")
@@ -105,30 +98,34 @@ class PDFConverter:
             width, height = pil_image.size
             if width > MAX_IMAGE_DIMENSION or height > MAX_IMAGE_DIMENSION:
                 raise ImageValidationError(
-                    f"Page {page_number}: Image dimensions {width}x{height} "
-                    f"exceed Claude's limit of {MAX_IMAGE_DIMENSION}x{MAX_IMAGE_DIMENSION}"
+                    f"Page {page_number}: dimensions {width}x{height} "
+                    f"exceed limit {MAX_IMAGE_DIMENSION}x{MAX_IMAGE_DIMENSION}"
                 )
 
             # Convert to PNG bytes
             img_buffer = BytesIO()
-            pil_image.save(img_buffer, format='PNG')
+            pil_image.save(img_buffer, format="PNG")
             img_bytes = img_buffer.getvalue()
             size_kb = len(img_bytes) / 1024
 
             # Base64 encode
-            image_base64 = base64.b64encode(img_bytes).decode('utf-8')
+            image_base64 = base64.b64encode(img_bytes).decode("utf-8")
 
             # Log conversion
-            logger.info(f"Page {page_number}: {width}x{height} pixels, {size_kb:.1f} KB")
+            logger.info(
+                f"Page {page_number}: {width}x{height} pixels, {size_kb:.1f} KB"
+            )
 
             # Store result
-            self.images.append({
-                'page_number': page_number,
-                'image_base64': image_base64,
-                'width': width,
-                'height': height,
-                'size_kb': size_kb
-            })
+            self.images.append(
+                {
+                    "page_number": page_number,
+                    "image_base64": image_base64,
+                    "width": width,
+                    "height": height,
+                    "size_kb": size_kb,
+                }
+            )
 
         logger.info(f"Successfully converted {len(self.images)} pages")
         return self.images
@@ -149,20 +146,26 @@ def main(pdf_path: str) -> None:
     images = converter.convert_pdf_to_images(pdf_path)
 
     # Calculate total size
-    total_size_mb = sum(img['size_kb'] for img in images) / 1024
+    total_size_mb = sum(img["size_kb"] for img in images) / 1024
 
     # Print summary
-    print(f"\nConverted {len(images)} pages successfully. Total size: {total_size_mb:.2f} MB")
+    print(f"\nConverted {len(images)} pages. Total size: {total_size_mb:.2f} MB")
 
     # Print first and last page info to verify range
     if images:
         first = images[0]
         last = images[-1]
-        print(f"\nFirst page: {first['page_number']} ({first['width']}x{first['height']} pixels, {first['size_kb']:.1f} KB)")
-        print(f"Last page: {last['page_number']} ({last['width']}x{last['height']} pixels, {last['size_kb']:.1f} KB)")
+        print(
+            f"\nFirst page: {first['page_number']} "
+            f"({first['width']}x{first['height']} px, {first['size_kb']:.1f} KB)"
+        )
+        print(
+            f"Last page: {last['page_number']} "
+            f"({last['width']}x{last['height']} px, {last['size_kb']:.1f} KB)"
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import sys
 
     if len(sys.argv) < 2:

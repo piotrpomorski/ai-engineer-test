@@ -12,25 +12,29 @@ from typing import Any, cast
 
 import anthropic
 from anthropic import (
-    APIError,
     APIConnectionError,
+    APIError,
     APITimeoutError,
-    RateLimitError,
-    InternalServerError,
     AuthenticationError,
     BadRequestError,
+    InternalServerError,
+    RateLimitError,
 )
-from anthropic.types import MessageParam, ContentBlockParam
+from anthropic.types import ContentBlockParam
 
 from src.api.vision import build_vision_request
-from src.api.prompts import JSON_SCHEMA
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 
 # Error classification for retry logic
-TRANSIENT_ERRORS = (RateLimitError, InternalServerError, APIConnectionError, APITimeoutError)
+TRANSIENT_ERRORS = (
+    RateLimitError,
+    InternalServerError,
+    APIConnectionError,
+    APITimeoutError,
+)
 PERMANENT_ERRORS = (AuthenticationError, BadRequestError)
 
 
@@ -47,12 +51,16 @@ def validate_environment() -> None:
     # Check API key
     if not os.getenv("ANTHROPIC_API_KEY"):
         print("ERROR: ANTHROPIC_API_KEY environment variable not set", file=sys.stderr)
-        print("Please set your API key: export ANTHROPIC_API_KEY='your-key'", file=sys.stderr)
+        print(
+            "Please set your API key: export ANTHROPIC_API_KEY='your-key'",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     # Check anthropic SDK
     try:
         import anthropic
+
         print(f"Anthropic SDK version: {anthropic.__version__}")
     except ImportError:
         print("ERROR: anthropic package not installed", file=sys.stderr)
@@ -181,12 +189,16 @@ class ClaudeVisionClient:
             total_cost = input_cost + output_cost
 
             logger.info(f"Token usage - Input: {input_tokens}, Output: {output_tokens}")
-            logger.info(f"Estimated cost: ${total_cost:.4f} (input: ${input_cost:.4f}, output: ${output_cost:.4f})")
+            logger.info(
+                f"Estimated cost: ${total_cost:.4f} "
+                f"(input: ${input_cost:.4f}, output: ${output_cost:.4f})"
+            )
 
             # Check stop reason
             if response.stop_reason == "max_tokens":
                 raise ValueError(
-                    "Response truncated due to max_tokens limit. Increase max_tokens or reduce input."
+                    "Response truncated due to max_tokens limit. "
+                    "Increase max_tokens or reduce input."
                 )
 
             # Parse JSON response
@@ -205,7 +217,9 @@ class ClaudeVisionClient:
                 logger.error(f"Response text: {response_text[:500]}...")
                 raise ValueError(f"Invalid JSON in response: {e}") from e
 
-            logger.info(f"Successfully extracted {len(result.get('clauses', []))} clauses")
+            logger.info(
+                f"Successfully extracted {len(result.get('clauses', []))} clauses"
+            )
             return result
 
         except TRANSIENT_ERRORS as e:

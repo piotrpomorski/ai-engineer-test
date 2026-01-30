@@ -11,7 +11,7 @@ PAGE_LABEL_TEMPLATE = "Page {page_number}:"
 CLAUSE_EXTRACTION_PROMPT = """Extract all numbered clauses from these contract pages.
 
 INSTRUCTIONS:
-1. Identify every numbered clause in the document (e.g., "1.", "2.", "3." or "Clause 1", etc.)
+1. Identify every numbered clause (e.g., "1.", "2.", "3." or "Clause 1", etc.)
 2. For each clause, note:
    - The page number where it appears (use the "Page N:" labels provided)
    - The clause number/identifier exactly as written
@@ -37,22 +37,22 @@ JSON_SCHEMA = {
                 "properties": {
                     "page": {
                         "type": "integer",
-                        "description": "The page number where this clause appears"
+                        "description": "The page number where this clause appears",
                     },
                     "clause_number": {
                         "type": "string",
-                        "description": "The clause identifier (e.g., '1.', 'Clause 1')"
+                        "description": "The clause identifier (e.g., '1.', 'Clause 1')",
                     },
                     "text": {
                         "type": "string",
-                        "description": "The complete text of the clause"
-                    }
+                        "description": "The complete text of the clause",
+                    },
                 },
                 "required": ["page", "clause_number", "text"],
-                "additionalProperties": False
-            }
+                "additionalProperties": False,
+            },
         }
     },
     "required": ["clauses"],
-    "additionalProperties": False
+    "additionalProperties": False,
 }

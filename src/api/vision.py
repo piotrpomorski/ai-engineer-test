@@ -6,8 +6,7 @@ with proper content array structure and payload size validation.
 
 from typing import Any
 
-from src.api.prompts import PAGE_LABEL_TEMPLATE, CLAUSE_EXTRACTION_PROMPT
-
+from src.api.prompts import CLAUSE_EXTRACTION_PROMPT, PAGE_LABEL_TEMPLATE
 
 # Maximum payload size for Claude API requests (32 MB)
 MAX_PAYLOAD_SIZE_MB = 32
@@ -60,26 +59,27 @@ def build_vision_request(pdf_pages: list[dict[str, Any]]) -> list[dict[str, Any]
             raise ValueError("Each page must have 'image_base64' field")
 
         # Add text label for page context
-        content.append({
-            "type": "text",
-            "text": PAGE_LABEL_TEMPLATE.format(page_number=page["page_number"])
-        })
+        content.append(
+            {
+                "type": "text",
+                "text": PAGE_LABEL_TEMPLATE.format(page_number=page["page_number"]),
+            }
+        )
 
         # Add image with base64 source
-        content.append({
-            "type": "image",
-            "source": {
-                "type": "base64",
-                "media_type": "image/png",
-                "data": page["image_base64"]
+        content.append(
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": "image/png",
+                    "data": page["image_base64"],
+                },
             }
-        })
+        )
 
     # Add final extraction prompt at the end
-    content.append({
-        "type": "text",
-        "text": CLAUSE_EXTRACTION_PROMPT
-    })
+    content.append({"type": "text", "text": CLAUSE_EXTRACTION_PROMPT})
 
     return content
 

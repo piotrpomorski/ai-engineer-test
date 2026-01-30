@@ -19,6 +19,7 @@ class Clause(BaseModel):
 
     This is the final output format with only essential fields.
     """
+
     id: str = Field(description="Clause identifier (e.g., '1', '14(a)')")
     title: str = Field(description="Clause title/heading extracted from first line")
     text: str = Field(description="Full clause text content")
@@ -42,7 +43,9 @@ def validate_raw_response(raw_data: dict[str, Any]) -> None:
     if not isinstance(raw_data["clauses"], list):
         raise ValueError("Raw response 'clauses' must be an array")
 
-    logger.info(f"Raw response validation passed: {len(raw_data['clauses'])} clauses found")
+    logger.info(
+        f"Raw response validation passed: {len(raw_data['clauses'])} clauses found"
+    )
 
 
 def transform_raw_to_output(raw_data: dict[str, Any]) -> list[Clause]:
@@ -52,7 +55,7 @@ def transform_raw_to_output(raw_data: dict[str, Any]) -> list[Clause]:
     and converts it to the clean output format (id, title, text only).
 
     Args:
-        raw_data: Dictionary with structure {"clauses": [{"page": int, "clause_number": str, "text": str}, ...]}
+        raw_data: Dict {"clauses": [{"page": int, "clause_number": str, "text": str}]}
 
     Returns:
         List of Clause objects ready for JSON serialization
@@ -70,28 +73,24 @@ def transform_raw_to_output(raw_data: dict[str, Any]) -> list[Clause]:
         # Skip clauses with empty text
         text = raw_clause.get("text", "").strip()
         if not text:
-            logger.warning(f"Skipping clause {raw_clause.get('clause_number', 'unknown')} with empty text")
+            clause_num = raw_clause.get("clause_number", "unknown")
+            logger.warning(f"Skipping clause {clause_num} with empty text")
             continue
 
         # Extract id from clause_number
         clause_id = raw_clause.get("clause_number", "").strip()
 
-        # Extract title from first line of text
-        # Title is up to first newline or period, with leading/trailing whitespace stripped
-        first_line = text.split('\n')[0]
-        title = first_line.split('.')[0].strip()
+        # Extract title from first line of text (up to first newline/period)
+        first_line = text.split("\n")[0]
+        title = first_line.split(".")[0].strip()
 
         # Create Clause object
-        clause = Clause(
-            id=clause_id,
-            title=title,
-            text=text
-        )
+        clause = Clause(id=clause_id, title=title, text=text)
         clauses.append(clause)
 
     # Warn if fewer than 10 clauses (suggests extraction failure)
     if len(clauses) < 10:
-        logger.warning(f"Only {len(clauses)} clauses extracted - this may indicate extraction failure")
+        logger.warning(f"Only {len(clauses)} clauses extracted - may indicate failure")
 
     logger.info(f"Transformed {len(clauses)} clauses to output format")
     return clauses

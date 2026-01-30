@@ -13,30 +13,30 @@ import json
 import logging
 import sys
 from pathlib import Path
+from typing import Any
 
-from src.pdf_converter import PDFConverter, PDFConversionError, ImageValidationError
 from src.api.client import ClaudeVisionClient, validate_environment
 from src.models import transform_raw_to_output, validate_raw_response
-
+from src.pdf_converter import ImageValidationError, PDFConversionError, PDFConverter
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 
-from typing import Any
-
-
-def main(pdf_path: str, output_path: str = "raw_response.json", final_output_path: str = "output.json") -> dict[str, Any]:
+def main(
+    pdf_path: str,
+    output_path: str = "raw_response.json",
+    final_output_path: str = "output.json",
+) -> dict[str, Any]:
     """Execute the complete clause extraction pipeline.
 
     Args:
         pdf_path: Path to the PDF file to process
-        output_path: Path to save the raw JSON response (default: raw_response.json)
-        final_output_path: Path to save the final transformed output (default: output.json)
+        output_path: Path for raw JSON response (default: raw_response.json)
+        final_output_path: Path for final JSON output (default: output.json)
 
     Returns:
         Dictionary containing extracted clauses
@@ -62,7 +62,7 @@ def main(pdf_path: str, output_path: str = "raw_response.json", final_output_pat
 
     # Log conversion summary
     total_pages = len(pdf_pages)
-    total_size_mb = sum(p['size_kb'] for p in pdf_pages) / 1024
+    total_size_mb = sum(p["size_kb"] for p in pdf_pages) / 1024
     logger.info(f"Converted {total_pages} pages, total size: {total_size_mb:.2f} MB")
 
     # Step 3: Extract clauses via Claude Vision API
@@ -71,18 +71,18 @@ def main(pdf_path: str, output_path: str = "raw_response.json", final_output_pat
     result = client.extract_clauses(pdf_pages)
 
     # Log extraction summary
-    clause_count = len(result.get('clauses', []))
+    clause_count = len(result.get("clauses", []))
     logger.info(f"Extracted {clause_count} clauses from document")
 
     # Step 4: Save raw response for Phase 3 processing
     logger.info(f"Step 4: Saving raw response to {output_path}...")
     output_file = Path(output_path)
-    with open(output_file, 'w', encoding='utf-8') as f:
+    with open(output_file, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, ensure_ascii=False)
     logger.info(f"Raw response saved ({output_file.stat().st_size} bytes)")
 
     # Step 5: Transform raw response to final output format
-    logger.info(f"Step 5: Transforming to final output format...")
+    logger.info("Step 5: Transforming to final output format...")
     try:
         validate_raw_response(result)
         clauses = transform_raw_to_output(result)
@@ -92,11 +92,14 @@ def main(pdf_path: str, output_path: str = "raw_response.json", final_output_pat
 
         # Write to final output file
         final_output_file = Path(final_output_path)
-        with open(final_output_file, 'w', encoding='utf-8') as f:
+        with open(final_output_file, "w", encoding="utf-8") as f:
             json.dump(output_data, f, indent=2, ensure_ascii=False)
 
         final_size_kb = final_output_file.stat().st_size / 1024
-        logger.info(f"Final output saved to {final_output_path} ({len(clauses)} clauses, {final_size_kb:.2f} KB)")
+        logger.info(
+            f"Final output saved to {final_output_path} "
+            f"({len(clauses)} clauses, {final_size_kb:.2f} KB)"
+        )
 
     except ValueError as e:
         logger.error(f"Raw response validation failed: {e}")
@@ -121,7 +124,7 @@ def parse_args() -> argparse.Namespace:
         Parsed arguments namespace
     """
     parser = argparse.ArgumentParser(
-        description="Extract clauses from Charter Party PDF documents using Claude Vision API",
+        description="Extract clauses from Charter Party PDFs using Claude Vision",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -130,32 +133,34 @@ Examples:
 
 Environment variables:
   ANTHROPIC_API_KEY  Your Anthropic API key (required)
-        """
+        """,
     )
 
     parser.add_argument(
         "pdf_path",
         nargs="?",
         default="voyage-charter-example.pdf",
-        help="Path to the PDF file to process (default: voyage-charter-example.pdf)"
+        help="Path to the PDF file to process (default: voyage-charter-example.pdf)",
     )
 
     parser.add_argument(
-        "-o", "--output",
+        "-o",
+        "--output",
         default="raw_response.json",
-        help="Output path for raw JSON response (default: raw_response.json)"
+        help="Output path for raw JSON response (default: raw_response.json)",
     )
 
     parser.add_argument(
         "--final-output",
         default="output.json",
-        help="Output path for final transformed JSON (default: output.json)"
+        help="Output path for final transformed JSON (default: output.json)",
     )
 
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
-        help="Enable verbose logging (DEBUG level)"
+        help="Enable verbose logging (DEBUG level)",
     )
 
     return parser.parse_args()
