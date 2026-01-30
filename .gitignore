@@ -30,4 +30,7 @@ htmlcov/
 *.swo
 .DS_Store
 
+# Output artifacts (debugging only - output.json is the deliverable)
+raw_response.json
+
 .planning/
