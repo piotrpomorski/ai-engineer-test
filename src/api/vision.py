@@ -1,139 +1,111 @@
-"""Vision request builder for multi-image Claude API calls.
+"""Vision request builder for PDF document Claude API calls.
 
-This module provides utilities for constructing vision API requests
-with proper content array structure and payload size validation.
+This module provides utilities for constructing PDF document API requests
+with proper content structure and payload size validation.
 """
 
 from typing import Any
 
-from src.api.prompts import CLAUSE_EXTRACTION_PROMPT, PAGE_LABEL_TEMPLATE
+from src.api.prompts import CLAUSE_EXTRACTION_PROMPT
 
-# Maximum payload size for Claude API requests (32 MB)
 MAX_PAYLOAD_SIZE_MB = 32
 MAX_PAYLOAD_SIZE_BYTES = MAX_PAYLOAD_SIZE_MB * 1024 * 1024
 
 
-def build_vision_request(pdf_pages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Build multi-image content array with page labels for Claude Vision API.
+def build_vision_request(pdf_data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build PDF document content array for Claude API.
 
-    Creates a content array with alternating text labels and images,
-    following the recommended pattern of placing images before the final prompt.
+    Creates a content array with the PDF document followed by the extraction prompt.
 
     Args:
-        pdf_pages: List of page dictionaries from PDFConverter.convert()
-            Each dict must contain:
-            - page_number: int - The page number in the document
-            - image_base64: str - Base64-encoded PNG image data
+        pdf_data: Dictionary from PDFHandler.extract_pages()
+            Must contain:
+            - pdf_base64: str - Base64-encoded PDF data
+            - page_range: tuple - (first_page, last_page)
+            - size_kb: float - Size in kilobytes
 
     Returns:
         Content array ready for Claude API messages parameter:
         [
-            {"type": "text", "text": "Page 6:"},
-            {"type": "image", "source": {...}},
-            {"type": "text", "text": "Page 7:"},
-            {"type": "image", "source": {...}},
-            ...
+            {"type": "document", "source": {...}},
             {"type": "text", "text": "<extraction prompt>"}
         ]
 
     Raises:
-        ValueError: If pdf_pages is empty or missing required fields
+        ValueError: If pdf_data is missing required fields
 
     Example:
-        >>> pages = [{"page_number": 6, "image_base64": "..."}]
-        >>> content = build_vision_request(pages)
+        >>> pdf_data = {"pdf_base64": "...", "page_range": (6, 39), "size_kb": 450}
+        >>> content = build_vision_request(pdf_data)
         >>> len(content)
-        3  # label + image + prompt
+        2  # document + prompt
     """
-    if not pdf_pages:
-        raise ValueError("pdf_pages cannot be empty")
+    if not pdf_data:
+        raise ValueError("pdf_data cannot be empty")
 
-    content: list[dict[str, Any]] = []
+    required_fields = {"pdf_base64", "page_range", "size_kb"}
+    missing = required_fields - set(pdf_data.keys())
+    if missing:
+        raise ValueError(f"pdf_data missing required fields: {missing}")
 
-    # Add each page with explicit label followed by image
-    for page in pdf_pages:
-        # Validate required fields
-        if "page_number" not in page:
-            raise ValueError("Each page must have 'page_number' field")
-        if "image_base64" not in page:
-            raise ValueError("Each page must have 'image_base64' field")
-
-        # Add text label for page context
-        content.append(
-            {
-                "type": "text",
-                "text": PAGE_LABEL_TEMPLATE.format(page_number=page["page_number"]),
-            }
-        )
-
-        # Add image with base64 source
-        content.append(
-            {
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": "image/png",
-                    "data": page["image_base64"],
-                },
-            }
-        )
-
-    # Add final extraction prompt at the end
-    content.append({"type": "text", "text": CLAUSE_EXTRACTION_PROMPT})
+    content: list[dict[str, Any]] = [
+        {
+            "type": "document",
+            "source": {
+                "type": "base64",
+                "media_type": "application/pdf",
+                "data": pdf_data["pdf_base64"],
+            },
+        },
+        {"type": "text", "text": CLAUSE_EXTRACTION_PROMPT},
+    ]
 
     return content
 
 
-def calculate_payload_size(pdf_pages: list[dict[str, Any]]) -> int:
-    """Calculate the total payload size of all images.
+def calculate_payload_size(pdf_data: dict[str, Any]) -> int:
+    """Calculate the payload size of the PDF.
 
     Args:
-        pdf_pages: List of page dictionaries from PDFConverter.convert()
-            If 'size_kb' field is present, uses it directly.
-            Otherwise, estimates from base64 string length.
+        pdf_data: Dictionary from PDFHandler.extract_pages()
+            Uses 'size_kb' field if present, otherwise estimates from base64 length.
 
     Returns:
-        Total payload size in bytes
+        Payload size in bytes
 
     Example:
-        >>> pages = [{"page_number": 6, "image_base64": "...", "size_kb": 378.5}]
-        >>> size = calculate_payload_size(pages)
+        >>> pdf_data = {"pdf_base64": "...", "size_kb": 450.2}
+        >>> size = calculate_payload_size(pdf_data)
         >>> print(f"{size / 1024 / 1024:.2f} MB")
     """
-    total_bytes = 0
-
-    for page in pdf_pages:
-        if "size_kb" in page:
-            # Use provided size if available
-            total_bytes += int(page["size_kb"] * 1024)
-        elif "image_base64" in page:
-            # Estimate from base64 length (base64 is ~4/3 of original size)
-            base64_len = len(page["image_base64"])
-            original_bytes = int(base64_len * 3 / 4)
-            total_bytes += original_bytes
-
-    return total_bytes
+    if "size_kb" in pdf_data:
+        return int(pdf_data["size_kb"] * 1024)
+    elif "pdf_base64" in pdf_data:
+        base64_len = len(pdf_data["pdf_base64"])
+        original_bytes = int(base64_len * 3 / 4)
+        return original_bytes
+    return 0
 
 
-def validate_payload_size(pdf_pages: list[dict[str, Any]]) -> None:
-    """Validate that total payload is under the 32 MB API limit.
+def validate_payload_size(pdf_data: dict[str, Any]) -> None:
+    """Validate that PDF payload is under the 32 MB API limit.
 
     Args:
-        pdf_pages: List of page dictionaries from PDFConverter.convert()
+        pdf_data: Dictionary from PDFHandler.extract_pages()
 
     Raises:
-        ValueError: If total payload exceeds 32 MB limit
+        ValueError: If payload exceeds 32 MB limit
 
     Example:
-        >>> pages = converter.convert("document.pdf")
-        >>> validate_payload_size(pages)  # Raises if > 32 MB
+        >>> pdf_data = handler.extract_pages("document.pdf")
+        >>> validate_payload_size(pdf_data)
     """
-    total_bytes = calculate_payload_size(pdf_pages)
+    total_bytes = calculate_payload_size(pdf_data)
     total_mb = total_bytes / 1024 / 1024
 
     if total_bytes > MAX_PAYLOAD_SIZE_BYTES:
         raise ValueError(
-            f"Total payload size ({total_mb:.2f} MB) exceeds "
+            f"PDF payload size ({total_mb:.2f} MB) exceeds "
             f"API limit of {MAX_PAYLOAD_SIZE_MB} MB. "
-            f"Consider reducing image resolution or batching pages."
+            f"Consider reducing the page range or splitting the document."
         )

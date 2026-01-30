@@ -123,15 +123,14 @@ class ClaudeVisionClient:
         """Get the underlying Anthropic client."""
         return self._client
 
-    def extract_clauses(self, pdf_pages: list[dict[str, Any]]) -> dict[str, Any]:
-        """Extract clauses from PDF page images using Claude Vision.
+    def extract_clauses(self, pdf_data: dict[str, Any]) -> dict[str, Any]:
+        """Extract clauses from PDF document using Claude.
 
-        Sends all PDF page images in a single API call with page labels,
-        using structured output for guaranteed JSON response format.
+        Sends the PDF document in a single API call with the extraction prompt.
 
         Args:
-            pdf_pages: List of page dictionaries from PDFConverter.convert()
-                Each dict contains: page_number, image_base64, width, height, size_kb
+            pdf_data: Dictionary from PDFHandler.extract_pages()
+                Must contain: pdf_base64, page_range, size_kb
 
         Returns:
             Dictionary with extracted clauses:
@@ -143,44 +142,39 @@ class ClaudeVisionClient:
             }
 
         Raises:
-            ValueError: If pdf_pages is empty or invalid
+            ValueError: If pdf_data is empty or invalid
             APIError: If API call fails after all retries
         """
-        # Validate input
-        if not pdf_pages:
+        if not pdf_data:
             raise ValueError(
-                "pdf_pages cannot be empty. "
-                "Ensure PDF conversion produced at least one page."
+                "pdf_data cannot be empty. "
+                "Ensure PDF extraction produced valid data."
             )
 
-        if not isinstance(pdf_pages, list):
+        if not isinstance(pdf_data, dict):
             raise ValueError(
-                f"pdf_pages must be a list, got {type(pdf_pages).__name__}"
+                f"pdf_data must be a dict, got {type(pdf_data).__name__}"
             )
 
-        # Validate each page has required fields
-        required_fields = {"page_number", "image_base64"}
-        for i, page in enumerate(pdf_pages):
-            if not isinstance(page, dict):
-                raise ValueError(
-                    f"pdf_pages[{i}] must be a dictionary, got {type(page).__name__}"
-                )
+        required_fields = {"pdf_base64", "page_range", "size_kb"}
+        missing = required_fields - set(pdf_data.keys())
+        if missing:
+            raise ValueError(
+                f"pdf_data missing required fields: {missing}. "
+                f"Available fields: {set(pdf_data.keys())}"
+            )
 
-            missing = required_fields - set(page.keys())
-            if missing:
-                raise ValueError(
-                    f"pdf_pages[{i}] missing required fields: {missing}. "
-                    f"Available fields: {set(page.keys())}"
-                )
-
-        # Build multi-image content array with page labels
-        logger.info(f"Building vision request for {len(pdf_pages)} pages")
-        content = build_vision_request(pdf_pages)
+        page_range = pdf_data["page_range"]
+        total_pages = page_range[1] - page_range[0] + 1
+        logger.info(
+            f"Building PDF request for pages {page_range[0]}-{page_range[1]} "
+            f"({total_pages} pages)"
+        )
+        content = build_vision_request(pdf_data)
         logger.debug(f"Request contains {len(content)} content blocks")
 
-        # Calculate total request size for debugging
-        total_base64_kb = sum(len(p.get("image_base64", "")) / 1024 for p in pdf_pages)
-        logger.debug(f"Total base64 image data: {total_base64_kb:.1f} KB")
+        size_kb = pdf_data.get("size_kb", 0)
+        logger.debug(f"PDF size: {size_kb:.1f} KB")
 
         # Cast content to expected type for Anthropic SDK
         message_content = cast(list[ContentBlockParam], content)

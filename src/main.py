@@ -17,7 +17,7 @@ from typing import Any
 
 from src.api.client import ClaudeVisionClient, validate_environment
 from src.models import transform_raw_to_output, validate_raw_response
-from src.pdf_converter import ImageValidationError, PDFConversionError, PDFConverter
+from src.pdf_handler import PDFExtractionError, PDFHandler
 
 # Configure logging
 logging.basicConfig(
@@ -57,20 +57,19 @@ def main(
     validate_environment()
     logger.info("Environment validation passed")
 
-    # Step 2: Convert PDF to images
-    logger.info("Step 2/5: Converting PDF to images...")
-    converter = PDFConverter()
-    pdf_pages = converter.convert_pdf_to_images(pdf_path)
+    # Step 2: Extract PDF pages
+    logger.info("Step 2/5: Extracting pages from PDF...")
+    handler = PDFHandler()
+    pdf_data = handler.extract_pages(pdf_path, first_page=6, last_page=39)
 
-    # Log conversion summary
-    total_pages = len(pdf_pages)
-    total_size_mb = sum(p["size_kb"] for p in pdf_pages) / 1024
-    logger.info(f"Converted {total_pages} pages, total size: {total_size_mb:.2f} MB")
+    total_pages = pdf_data["total_pages"]
+    total_size_mb = pdf_data["size_kb"] / 1024
+    logger.info(f"Extracted {total_pages} pages, total size: {total_size_mb:.2f} MB")
 
-    # Step 3: Extract clauses via Claude Vision API
-    logger.info("Step 3/5: Sending images to Claude Vision API...")
+    # Step 3: Extract clauses via Claude API
+    logger.info("Step 3/5: Sending PDF to Claude API...")
     client = ClaudeVisionClient()
-    result = client.extract_clauses(pdf_pages)
+    result = client.extract_clauses(pdf_data)
 
     # Log extraction summary
     clause_count = len(result.get("clauses", []))
@@ -185,12 +184,8 @@ if __name__ == "__main__":
         logger.error(f"File not found: {e}")
         sys.exit(1)
 
-    except PDFConversionError as e:
-        logger.error(f"PDF conversion failed: {e}")
-        sys.exit(1)
-
-    except ImageValidationError as e:
-        logger.error(f"Image validation failed: {e}")
+    except PDFExtractionError as e:
+        logger.error(f"PDF extraction failed: {e}")
         sys.exit(1)
 
     except ValueError as e:

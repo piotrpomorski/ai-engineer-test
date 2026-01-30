@@ -50,13 +50,10 @@ This solution implements an end-to-end pipeline for extracting legal clauses fro
 PDF Document
      |
      v
-[PDF Converter] -- Converts pages 6-39 to images at 150 DPI
+[PDF Handler] -- Extracts pages 6-39 and encodes to base64
      |
      v
-[Base64 Encoder] -- Encodes images for API transport
-     |
-     v
-[Claude Vision API] -- Extracts clauses with structured output
+[Claude API] -- Extracts clauses with structured output
      |
      v
 [Pydantic Validation] -- Validates and transforms response
@@ -79,7 +76,6 @@ JSON Output (output.json)
 
 - **Python 3.13+**
 - **Anthropic API key** (sign up at https://console.anthropic.com)
-- **poppler-utils** (system dependency for pdf2image)
 
 ---
 
@@ -103,21 +99,6 @@ Or using uv (recommended):
 ```bash
 uv sync
 ```
-
-### 3. Install system dependency (poppler)
-
-**macOS:**
-```bash
-brew install poppler
-```
-
-**Ubuntu/Debian:**
-```bash
-sudo apt-get install poppler-utils
-```
-
-**Windows:**
-Download from https://github.com/oschwartz10612/poppler-windows/releases and add to PATH.
 
 ---
 
@@ -217,12 +198,12 @@ ai-engineer-test/
 |-- src/
 |   |-- __init__.py
 |   |-- main.py              # Pipeline orchestration and CLI
-|   |-- pdf_converter.py     # PDF to image conversion
+|   |-- pdf_handler.py       # PDF page extraction
 |   |-- models.py            # Pydantic models and transformation
 |   |-- api/
 |       |-- __init__.py
 |       |-- client.py        # Claude API client with retry logic
-|       |-- vision.py        # Vision request builder
+|       |-- vision.py        # PDF request builder
 |       |-- prompts.py       # Extraction prompt templates
 |
 |-- voyage-charter-example.pdf   # Sample input document
@@ -237,10 +218,10 @@ ai-engineer-test/
 | Module | Description |
 |--------|-------------|
 | `src/main.py` | Main entry point. Orchestrates the 5-step pipeline. |
-| `src/pdf_converter.py` | Converts PDF pages to base64-encoded PNG images. |
+| `src/pdf_handler.py` | Extracts page ranges and encodes PDF to base64. |
 | `src/models.py` | Pydantic models for output validation and transformation. |
-| `src/api/client.py` | Claude Vision API client with retry logic. |
-| `src/api/vision.py` | Builds multi-image API request payloads. |
+| `src/api/client.py` | Claude API client with retry logic. |
+| `src/api/vision.py` | Builds PDF document API request payloads. |
 | `src/api/prompts.py` | Prompt templates for clause extraction. |
 
 ---
@@ -289,9 +270,6 @@ Set your API key:
 export ANTHROPIC_API_KEY="your-api-key-here"
 ```
 
-### "Failed to convert PDF... Ensure poppler-utils is installed"
-
-Install poppler for your platform (see Installation section).
 
 ### "Response truncated due to max_tokens limit"
 
