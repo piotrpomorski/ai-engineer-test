@@ -63,62 +63,64 @@ def validate_raw_response(raw_data: dict[str, Any]) -> None:
 def transform_raw_to_output(raw_data: dict[str, Any]) -> list[Clause]:
     """Transform raw API response into final output format.
 
-    Takes the raw Claude API response structure (with page numbers, clause_number)
-    and converts it to the clean output format (id, title, text only).
+    Takes the raw API response and converts it to clean output format.
 
     Args:
-        raw_data: Dict {"clauses": [{"page": int, "clause_number": str, "text": str}]}
+        raw_data: Dict {"clauses": [{"clause_number": str, "title": str, "text": str}]}
 
     Returns:
-        List of Clause objects ready for JSON serialization
+        List of Clause objects in document order
 
     Notes:
-        - Preserves clause order from API response (no sorting)
-        - Extracts title from first line of text (up to newline or period)
-        - Skips clauses with empty/None text
-        - Warns if fewer than 10 clauses (suggests extraction failure)
+        - Preserves document order (no sorting)
+        - Handles duplicate IDs by appending _2, _3, etc.
+        - Skips clauses with empty text
     """
     clauses: list[Clause] = []
     raw_clauses = raw_data.get("clauses", [])
     skipped_count = 0
+    seen_ids: dict[str, int] = {}
 
     logger.debug(f"Starting transformation of {len(raw_clauses)} raw clauses")
 
     for idx, raw_clause in enumerate(raw_clauses):
-        # Skip clauses with empty text
-        text = raw_clause.get("text", "").strip()
+        text = raw_clause.get("text") or ""
+        text = text.strip() if isinstance(text, str) else ""
         if not text:
             clause_num = raw_clause.get("clause_number", "unknown")
-            page_num = raw_clause.get("page", "?")
-            logger.warning(
-                f"Skipping clause {clause_num} (page {page_num}): empty text content"
-            )
+            logger.warning(f"Skipping clause {clause_num}: empty text content")
             skipped_count += 1
             continue
 
-        # Extract id from clause_number
-        clause_id = raw_clause.get("clause_number", "").strip()
+        clause_id = raw_clause.get("clause_number") or ""
+        clause_id = clause_id.strip() if isinstance(clause_id, str) else str(clause_id)
         if not clause_id:
             logger.warning(f"Raw clause at index {idx} has no clause_number")
+            clause_id = f"unknown_{idx}"
 
-        # Extract title from first line of text (up to first newline/period)
-        first_line = text.split("\n")[0]
-        title = first_line.split(".")[0].strip()
+        if clause_id in seen_ids:
+            seen_ids[clause_id] += 1
+            original_id = clause_id
+            clause_id = f"{clause_id}_{seen_ids[original_id]}"
+            logger.debug(f"Duplicate ID '{original_id}' renamed to '{clause_id}'")
+        else:
+            seen_ids[clause_id] = 1
 
-        logger.debug(
-            f"Clause {clause_id}: title='{title[:50]}...', text_len={len(text)}"
-        )
+        title = raw_clause.get("title") or ""
+        title = title.strip() if isinstance(title, str) else str(title)
+        if not title:
+            title = clause_id
 
-        # Create Clause object
+        logger.debug(f"Clause {clause_id}: title='{title[:50]}', text_len={len(text)}")
+
         clause = Clause(id=clause_id, title=title, text=text)
         clauses.append(clause)
 
     if skipped_count > 0:
         logger.info(f"Skipped {skipped_count} clauses with empty text")
 
-    # Warn if fewer than 10 clauses (suggests extraction failure)
     if len(clauses) < 10:
         logger.warning(f"Only {len(clauses)} clauses extracted - may indicate failure")
 
-    logger.info(f"Transformed {len(clauses)} clauses to output format")
+    logger.info(f"Transformed {len(clauses)} clauses to output format (document order)")
     return clauses
