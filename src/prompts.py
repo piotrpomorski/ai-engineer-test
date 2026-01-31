@@ -4,7 +4,8 @@ This module contains the prompt templates and JSON schemas used for
 extracting clauses from contract PDF documents.
 """
 
-CLAUSE_EXTRACTION_PROMPT = """Extract all numbered clauses from this charter party PDF document.
+CLAUSE_EXTRACTION_PROMPT = """\
+Extract all numbered clauses from this charter party PDF document.
 
 ## Instructions
 
@@ -26,7 +27,8 @@ For each clause extract:
 
 ## Output Format
 
-Return ONLY a valid JSON object with no additional text, explanation, or markdown formatting.
+Return ONLY a valid JSON object with no additional text, explanation,
+or markdown formatting.
 
 {
   "clauses": [
@@ -45,7 +47,8 @@ Return ONLY a valid JSON object with no additional text, explanation, or markdow
   ]
 }
 
-IMPORTANT: Output ONLY the JSON object. No preamble, no explanation, no markdown code blocks."""
+IMPORTANT: Output ONLY the JSON object. No preamble, no explanation,
+no markdown code blocks."""
 
 # JSON schema for structured output validation
 # Guarantees valid JSON response matching this schema
