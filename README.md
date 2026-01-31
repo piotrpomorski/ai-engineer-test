@@ -42,7 +42,7 @@ Any questions shoot and good luck!
 
 ## Solution Overview
 
-This solution implements an end-to-end pipeline for extracting legal clauses from charter party PDF documents using Claude Vision API.
+This solution implements an end-to-end pipeline for extracting legal clauses from charter party PDF documents using Google Gemini API with native PDF support.
 
 ### Pipeline Architecture
 
@@ -50,10 +50,10 @@ This solution implements an end-to-end pipeline for extracting legal clauses fro
 PDF Document
      |
      v
-[PDF Handler] -- Extracts pages 6-39 and encodes to base64
+[Base64 Encoder] -- Encodes entire PDF to base64
      |
      v
-[Claude API] -- Extracts clauses with structured output
+[Gemini API] -- Native PDF processing, extracts clauses with JSON output
      |
      v
 [Pydantic Validation] -- Validates and transforms response
@@ -64,8 +64,10 @@ JSON Output (output.json)
 
 ### Key Features
 
-- **In-memory processing**: No temporary files written to disk
-- **Automatic retry logic**: Handles transient API errors with exponential backoff
+- **Native PDF processing**: Gemini processes PDFs directly (no image conversion needed)
+- **No system dependencies**: Pure Python, no poppler or external tools required
+- **LangChain integration**: Uses LangChain for robust LLM orchestration
+- **Large file support**: Handles PDFs up to 100MB
 - **Pydantic validation**: Ensures output conforms to expected schema
 - **Structured logging**: Step-by-step progress with debug mode for troubleshooting
 - **Strike-through exclusion**: Explicitly instructs API to skip deleted text
@@ -75,7 +77,7 @@ JSON Output (output.json)
 ## Prerequisites
 
 - **Python 3.13+**
-- **Anthropic API key** (sign up at https://console.anthropic.com)
+- **Google API key** (sign up at https://aistudio.google.com/apikey)
 
 ---
 
@@ -106,15 +108,15 @@ uv sync
 
 ### Set API Key
 
-Set your Anthropic API key as an environment variable:
+Set your Google API key as an environment variable:
 
 ```bash
-export ANTHROPIC_API_KEY="your-api-key-here"
+export GOOGLE_API_KEY="your-api-key-here"
 ```
 
 Alternatively, create a `.env` file in the project root:
 ```
-ANTHROPIC_API_KEY=your-api-key-here
+GOOGLE_API_KEY=your-api-key-here
 ```
 
 Note: The `.env` file is gitignored and will not be committed.
@@ -153,7 +155,7 @@ python -m src.main voyage-charter-example.pdf --verbose
 
 ### Processing Time
 
-Expect approximately 30-60 seconds for the 34-page document. The majority of time is spent on the Claude API call processing all images.
+Expect approximately 10-20 seconds for processing. Gemini's native PDF support is significantly faster than image-based approaches.
 
 ---
 
@@ -198,13 +200,9 @@ ai-engineer-test/
 |-- src/
 |   |-- __init__.py
 |   |-- main.py              # Pipeline orchestration and CLI
-|   |-- pdf_handler.py       # PDF page extraction
+|   |-- gemini_client.py     # Gemini API client with native PDF support
 |   |-- models.py            # Pydantic models and transformation
-|   |-- api/
-|       |-- __init__.py
-|       |-- client.py        # Claude API client with retry logic
-|       |-- vision.py        # PDF request builder
-|       |-- prompts.py       # Extraction prompt templates
+|   |-- prompts.py           # Extraction prompt templates
 |
 |-- voyage-charter-example.pdf   # Sample input document
 |-- output.json                  # Sample extraction output
@@ -218,11 +216,9 @@ ai-engineer-test/
 | Module | Description |
 |--------|-------------|
 | `src/main.py` | Main entry point. Orchestrates the 5-step pipeline. |
-| `src/pdf_handler.py` | Extracts page ranges and encodes PDF to base64. |
+| `src/gemini_client.py` | Gemini API client with native PDF processing. |
 | `src/models.py` | Pydantic models for output validation and transformation. |
-| `src/api/client.py` | Claude API client with retry logic. |
-| `src/api/vision.py` | Builds PDF document API request payloads. |
-| `src/api/prompts.py` | Prompt templates for clause extraction. |
+| `src/prompts.py` | Prompt templates for clause extraction. |
 
 ---
 
@@ -263,11 +259,11 @@ mypy src/ && black --check src/ && ruff check src/
 
 ## Troubleshooting
 
-### "ANTHROPIC_API_KEY environment variable not set"
+### "GOOGLE_API_KEY environment variable not set"
 
 Set your API key:
 ```bash
-export ANTHROPIC_API_KEY="your-api-key-here"
+export GOOGLE_API_KEY="your-api-key-here"
 ```
 
 
@@ -275,6 +271,6 @@ export ANTHROPIC_API_KEY="your-api-key-here"
 
 The document produced more text than expected. This is rare with the default 8192 token limit.
 
-### API timeout errors
+### API errors
 
-The default timeout is 300 seconds (5 minutes). For very slow connections, the pipeline will retry automatically up to 3 times.
+If you encounter rate limits or timeout errors, Gemini provides generous free tier limits. Check your quota at https://aistudio.google.com/

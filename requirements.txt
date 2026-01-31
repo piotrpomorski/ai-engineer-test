@@ -1,14 +1,17 @@
 # Runtime dependencies for Charter Party Document Parser
 # Install with: pip install -r requirements.txt
 
-# Anthropic SDK for Claude Vision API
-anthropic>=0.40.0
+# LangChain for LLM orchestration
+langchain==1.2.7
 
-# PDF page extraction
-pypdf>=4.0.0
+# Google Gemini API
+langchain-google-genai==4.2.0
 
 # Data validation
 pydantic>=2.0.0
+
+# PDF page extraction for batching
+pypdf>=4.0.0
 
 # Environment variable loading
 python-dotenv>=1.0.0

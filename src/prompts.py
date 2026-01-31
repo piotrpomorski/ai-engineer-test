@@ -1,34 +1,43 @@
-"""Extraction prompt templates for Claude PDF API.
+"""Extraction prompt templates for Gemini PDF processing.
 
 This module contains the prompt templates and JSON schemas used for
 extracting clauses from contract PDF documents.
 """
 
-CLAUSE_EXTRACTION_PROMPT = """Extract all numbered clauses from this PDF document (pages 6-39).
+CLAUSE_EXTRACTION_PROMPT = """Extract all numbered clauses from this PDF document.
 
-<instructions>
-<task>
-Identify every numbered clause in the document (e.g., "1.", "2.", "3." or "Clause 1", etc.)
-</task>
+## Instructions
 
-<for_each_clause>
-Extract the following information:
+**Task:** Identify every numbered clause in the document
+(e.g., "1.", "2.", "3." or "Clause 1", etc.)
+
+**For each clause, extract:**
 - The page number where it appears in the PDF
 - The clause number/identifier exactly as written in the document
 - The complete text of the clause, even if it spans multiple lines
-</for_each_clause>
-</instructions>
 
-<critical_requirements>
-- EXCLUDE any text that has strikethrough formatting (crossed-out text)
-- Include ONLY visible, non-struck text
+## Critical Requirements
+
+- **EXCLUDE** any text that has strikethrough formatting (crossed-out text)
+- Include **ONLY** visible, non-struck text
 - Preserve the exact clause numbering from the document
 - Do not skip or combine clauses
-</critical_requirements>
 
-<output_format>
-Return the results as a JSON object with the exact structure specified in the schema.
-</output_format>"""
+## Output Format
+
+Return the results as a JSON object with this structure:
+
+```json
+{
+  "clauses": [
+    {
+      "page": 6,
+      "clause_number": "1.",
+      "text": "The complete clause text..."
+    }
+  ]
+}
+```"""
 
 # JSON schema for structured output validation
 # Guarantees valid JSON response matching this schema
