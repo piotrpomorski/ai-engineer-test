@@ -237,6 +237,7 @@ ai-engineer-test/
 |   |-- __init__.py
 |   |-- main.py              # Pipeline orchestration and CLI
 |   |-- gemini_client.py     # Gemini API client with native PDF support
+|   |-- batch_processor.py   # PDF batching, parallel processing, merge & dedupe
 |   |-- models.py            # Pydantic models and transformation
 |   |-- prompts.py           # Extraction prompt templates
 |
@@ -306,7 +307,7 @@ export GOOGLE_API_KEY="your-api-key-here"
 
 ### "Response truncated due to max_tokens limit"
 
-The document produced more text than expected. This is rare with the default 8192 token limit.
+The document produced more text than expected. This is rare with the default 32768 token limit.
 
 ### API errors
 
