@@ -32,6 +32,7 @@ def extract_json_from_response(text: str) -> str:
 
     return text.strip()
 
+
 MAX_FILE_SIZE_MB = 100
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
