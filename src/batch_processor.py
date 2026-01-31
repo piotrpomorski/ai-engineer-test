@@ -14,7 +14,7 @@ from typing import Any
 
 from pypdf import PdfReader, PdfWriter
 
-from src.gemini_client import GeminiClient
+from src.gemini_client import FLASH_MODEL, GeminiClient
 from src.prompts import CLAUSE_EXTRACTION_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -32,6 +32,7 @@ class BatchConfig:
     max_workers: int = 3
     max_retries: int = 3
     retry_delay: float = 2.0  # Base delay for exponential backoff
+    model: str = FLASH_MODEL  # Default to Flash for speed in batch processing
 
 
 @dataclass
@@ -56,7 +57,7 @@ class BatchProcessor:
             client: GeminiClient instance (created if not provided)
         """
         self.config = config
-        self.client = client or GeminiClient()
+        self.client = client or GeminiClient(model=config.model)
 
     def process(self, pdf_path: str) -> dict[str, Any]:
         """Process a PDF file with batching.
@@ -418,7 +419,6 @@ class BatchProcessor:
             for page in range(next_start, batch_end + 1):
                 overlap_pages.add(page)
 
-        # Collect all clauses with metadata
         clause_map: dict[str, dict[str, Any]] = {}
 
         for result in results:
@@ -434,25 +434,19 @@ class BatchProcessor:
                 text = clause.get("text", "")
                 in_overlap = page in overlap_pages
 
-                existing = clause_map.get(clause_num)
-                if existing is None:
-                    # First occurrence
-                    clause_map[clause_num] = clause
-                else:
-                    # Duplicate - apply preference rules
-                    existing_in_overlap = existing.get("page", 0) in overlap_pages
-                    existing_text_len = len(existing.get("text", ""))
-                    new_text_len = len(text)
+                dedup_key = f"{page}:{clause_num}"
 
-                    # Prefer non-overlap version
-                    if existing_in_overlap and not in_overlap:
-                        clause_map[clause_num] = clause
-                    elif not existing_in_overlap and in_overlap:
-                        # Keep existing (it's not in overlap)
-                        pass
-                    elif new_text_len > existing_text_len:
-                        # Tie-breaker: prefer longer text
-                        clause_map[clause_num] = clause
+                if in_overlap:
+                    existing = clause_map.get(dedup_key)
+                    if existing is None:
+                        clause_map[dedup_key] = clause
+                    else:
+                        existing_text_len = len(existing.get("text", ""))
+                        new_text_len = len(text)
+                        if new_text_len > existing_text_len:
+                            clause_map[dedup_key] = clause
+                else:
+                    clause_map[dedup_key] = clause
 
         # Remove internal metadata and sort
         final_clauses = []

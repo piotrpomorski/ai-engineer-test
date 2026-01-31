@@ -2,6 +2,7 @@ import base64
 import json
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Any, cast
 
@@ -9,6 +10,27 @@ from langchain_core.messages import HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 logger = logging.getLogger(__name__)
+
+
+def extract_json_from_response(text: str) -> str:
+    """Extract JSON object from response text.
+
+    Handles responses with:
+    - Plain JSON
+    - JSON wrapped in ```json ... ```
+    - JSON with preamble text before it
+    """
+    code_block_pattern = r"```(?:json)?\s*\n?(.*?)\n?```"
+    match = re.search(code_block_pattern, text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+
+    json_pattern = r'\{[^{}]*"clauses"\s*:\s*\[[\s\S]*\]\s*\}'
+    match = re.search(json_pattern, text)
+    if match:
+        return match.group(0)
+
+    return text.strip()
 
 MAX_FILE_SIZE_MB = 100
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
@@ -21,10 +43,14 @@ def validate_environment() -> None:
         raise SystemExit(1)
 
 
+DEFAULT_MODEL = "gemini-3-pro-preview"
+FLASH_MODEL = "gemini-3-flash-preview"
+
+
 class GeminiClient:
     def __init__(
         self,
-        model: str = "gemini-3-pro-preview",
+        model: str = DEFAULT_MODEL,
         max_tokens: int = 32768,
         temperature: float = 1.0,
     ):
@@ -36,13 +62,17 @@ class GeminiClient:
         if not api_key:
             raise ValueError("GOOGLE_API_KEY not found in environment")
 
-        self.llm = ChatGoogleGenerativeAI(
-            model=model,
-            max_output_tokens=max_tokens,
-            temperature=temperature,
-            api_key=api_key,
-            thinking_level="low",
-        )
+        # Only use thinking_level for non-flash models
+        llm_kwargs: dict[str, Any] = {
+            "model": model,
+            "max_output_tokens": max_tokens,
+            "temperature": temperature,
+            "api_key": api_key,
+        }
+        if "flash" not in model.lower():
+            llm_kwargs["thinking_level"] = "low"
+
+        self.llm = ChatGoogleGenerativeAI(**llm_kwargs)
 
         logger.info(f"Initialized Gemini client with model: {model}")
 
@@ -87,10 +117,20 @@ class GeminiClient:
         try:
             response = self.llm.invoke([message])
 
-            response_text = cast(str, response.content)
+            if isinstance(response.content, str):
+                response_text = response.content
+            elif isinstance(response.content, list):
+                response_text = "".join(
+                    str(block) if isinstance(block, str) else block.get("text", "")
+                    for block in response.content
+                )
+            else:
+                response_text = str(response.content)
+
             logger.info(f"Received response ({len(response_text)} chars)")
 
-            result = cast(dict[str, Any], json.loads(response_text))
+            json_text = extract_json_from_response(response_text)
+            result = cast(dict[str, Any], json.loads(json_text))
 
             clause_count = len(result.get("clauses", []))
             logger.info(f"Extracted {clause_count} clauses")
@@ -156,10 +196,20 @@ class GeminiClient:
         try:
             response = self.llm.invoke([message])
 
-            response_text = cast(str, response.content)
+            if isinstance(response.content, str):
+                response_text = response.content
+            elif isinstance(response.content, list):
+                response_text = "".join(
+                    str(block) if isinstance(block, str) else block.get("text", "")
+                    for block in response.content
+                )
+            else:
+                response_text = str(response.content)
+
             logger.info(f"Received response ({len(response_text)} chars)")
 
-            result = cast(dict[str, Any], json.loads(response_text))
+            json_text = extract_json_from_response(response_text)
+            result = cast(dict[str, Any], json.loads(json_text))
 
             clause_count = len(result.get("clauses", []))
             logger.info(f"Extracted {clause_count} clauses{range_str}")

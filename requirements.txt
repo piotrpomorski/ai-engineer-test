@@ -11,7 +11,7 @@ langchain-google-genai==4.2.0
 pydantic>=2.0.0
 
 # PDF page extraction for batching
-pypdf>=4.0.0
+pypdf>=6.0.0
 
 # Environment variable loading
 python-dotenv>=1.0.0

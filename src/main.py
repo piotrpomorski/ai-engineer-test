@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from src.batch_processor import BatchConfig, BatchProcessor
-from src.gemini_client import GeminiClient, validate_environment
+from src.gemini_client import FLASH_MODEL, GeminiClient, validate_environment
 from src.models import transform_raw_to_output, validate_raw_response
 from src.prompts import CLAUSE_EXTRACTION_PROMPT
 
@@ -232,6 +232,13 @@ Environment variables:
         help="Maximum parallel workers (default: 3)",
     )
 
+    batch_group.add_argument(
+        "--model",
+        type=str,
+        default=FLASH_MODEL,
+        help=f"Gemini model to use (default: {FLASH_MODEL})",
+    )
+
     return parser.parse_args()
 
 
@@ -257,6 +264,7 @@ if __name__ == "__main__":
             overlap=args.overlap,
             parallel=args.parallel,
             max_workers=args.max_workers,
+            model=args.model,
         )
 
     try:

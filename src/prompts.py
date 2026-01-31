@@ -4,40 +4,48 @@ This module contains the prompt templates and JSON schemas used for
 extracting clauses from contract PDF documents.
 """
 
-CLAUSE_EXTRACTION_PROMPT = """Extract all numbered clauses from this PDF document.
+CLAUSE_EXTRACTION_PROMPT = """Extract all numbered clauses from this charter party PDF document.
 
 ## Instructions
 
-**Task:** Identify every numbered clause in the document
-(e.g., "1.", "2.", "3." or "Clause 1", etc.)
+Extract every numbered clause from the document (e.g., "1.", "2.", "14(a)", etc.).
 
-**For each clause, extract:**
-- The page number where it appears in the PDF
-- The clause number/identifier exactly as written in the document
-- The complete text of the clause, even if it spans multiple lines
+For each clause extract:
+- The page number where it appears (for ordering)
+- The clause number/identifier exactly as written
+- The title or heading (if the clause has one)
+- The complete text content
 
 ## Critical Requirements
 
-- **EXCLUDE** any text that has strikethrough formatting (crossed-out text)
-- Include **ONLY** visible, non-struck text
-- Preserve the exact clause numbering from the document
-- Do not skip or combine clauses
+- **COMPLETELY SKIP** any text that is struck through, crossed out, or deleted
+- Do NOT create entries for deleted/struck clauses
+- Only include clauses with actual substantive text
+- Return clauses in the order they appear in the document
+- If clause numbers repeat (e.g., addendum sections), keep them all in document order
 
 ## Output Format
 
-Return the results as a JSON object with this structure:
+Return ONLY a valid JSON object with no additional text, explanation, or markdown formatting.
 
-```json
 {
   "clauses": [
     {
       "page": 6,
       "clause_number": "1.",
-      "text": "The complete clause text..."
+      "title": "Condition of Vessel",
+      "text": "Owners shall exercise due diligence..."
+    },
+    {
+      "page": 6,
+      "clause_number": "2.",
+      "title": "Cleanliness of Tanks", 
+      "text": "Whilst loading, carrying and discharging..."
     }
   ]
 }
-```"""
+
+IMPORTANT: Output ONLY the JSON object. No preamble, no explanation, no markdown code blocks."""
 
 # JSON schema for structured output validation
 # Guarantees valid JSON response matching this schema
@@ -51,18 +59,22 @@ JSON_SCHEMA = {
                 "properties": {
                     "page": {
                         "type": "integer",
-                        "description": "The page number where this clause appears",
+                        "description": "Page number where clause appears",
                     },
                     "clause_number": {
                         "type": "string",
-                        "description": "The clause identifier (e.g., '1.', 'Clause 1')",
+                        "description": "The clause identifier (e.g., '1.', '14(a)')",
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Clause title or heading",
                     },
                     "text": {
                         "type": "string",
                         "description": "The complete text of the clause",
                     },
                 },
-                "required": ["page", "clause_number", "text"],
+                "required": ["page", "clause_number", "title", "text"],
                 "additionalProperties": False,
             },
         }
