@@ -84,14 +84,16 @@ def transform_raw_to_output(raw_data: dict[str, Any]) -> list[Clause]:
     logger.debug(f"Starting transformation of {len(raw_clauses)} raw clauses")
 
     for idx, raw_clause in enumerate(raw_clauses):
-        text = raw_clause.get("text", "").strip()
+        text = raw_clause.get("text") or ""
+        text = text.strip() if isinstance(text, str) else ""
         if not text:
             clause_num = raw_clause.get("clause_number", "unknown")
             logger.warning(f"Skipping clause {clause_num}: empty text content")
             skipped_count += 1
             continue
 
-        clause_id = raw_clause.get("clause_number", "").strip()
+        clause_id = raw_clause.get("clause_number") or ""
+        clause_id = clause_id.strip() if isinstance(clause_id, str) else str(clause_id)
         if not clause_id:
             logger.warning(f"Raw clause at index {idx} has no clause_number")
             clause_id = f"unknown_{idx}"
@@ -104,7 +106,8 @@ def transform_raw_to_output(raw_data: dict[str, Any]) -> list[Clause]:
         else:
             seen_ids[clause_id] = 1
 
-        title = raw_clause.get("title", "").strip()
+        title = raw_clause.get("title") or ""
+        title = title.strip() if isinstance(title, str) else str(title)
         if not title:
             title = clause_id
 

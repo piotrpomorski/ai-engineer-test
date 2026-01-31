@@ -52,7 +52,7 @@ class GeminiClient:
         self,
         model: str = DEFAULT_MODEL,
         max_tokens: int = 32768,
-        temperature: float = 1.0,
+        temperature: float = 0.1,
     ):
         self.model = model
         self.max_tokens = max_tokens

@@ -50,10 +50,13 @@ This solution implements an end-to-end pipeline for extracting legal clauses fro
 PDF Document
      |
      v
-[Base64 Encoder] -- Encodes entire PDF to base64
+[Batch Processor] -- Splits PDF into page ranges (optional)
      |
      v
-[Gemini API] -- Native PDF processing, extracts clauses with JSON output
+[Gemini API] -- Native PDF processing with parallel batches
+     |
+     v
+[Merge & Dedupe] -- Combines results, removes duplicates
      |
      v
 [Pydantic Validation] -- Validates and transforms response
@@ -65,12 +68,14 @@ JSON Output (output.json)
 ### Key Features
 
 - **Native PDF processing**: Gemini processes PDFs directly (no image conversion needed)
+- **Parallel batch processing**: Split large PDFs into chunks for faster extraction
 - **No system dependencies**: Pure Python, no poppler or external tools required
 - **LangChain integration**: Uses LangChain for robust LLM orchestration
 - **Large file support**: Handles PDFs up to 100MB
 - **Pydantic validation**: Ensures output conforms to expected schema
 - **Structured logging**: Step-by-step progress with debug mode for troubleshooting
 - **Strike-through exclusion**: Explicitly instructs API to skip deleted text
+- **Automatic retry**: Handles transient API errors with exponential backoff
 
 ---
 
@@ -137,6 +142,33 @@ This produces two output files:
 - `raw_response.json` - Raw API response (for debugging)
 - `output.json` - Final transformed output (the deliverable)
 
+### Recommended: Parallel Batch Processing
+
+For faster and more reliable extraction, use parallel batch processing with Gemini Pro:
+
+```bash
+python -m src.main voyage-charter-example.pdf \
+  --batch-size 12 \
+  --parallel \
+  --max-workers 3 \
+  --start-page 6 \
+  --model gemini-3-pro-preview
+```
+
+This splits the PDF into overlapping chunks and processes them in parallel.
+
+### Batch Processing Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--batch-size N` | Pages per batch (0 = no batching) | 0 |
+| `--parallel` | Process batches in parallel | False |
+| `--max-workers N` | Number of parallel workers | 3 |
+| `--start-page N` | First page to process (1-indexed) | 1 |
+| `--end-page N` | Last page to process | Last page |
+| `--model NAME` | Gemini model to use | gemini-3-flash-preview |
+| `--overlap N` | Pages of overlap between batches | 2 |
+
 ### Custom Output Paths
 
 Specify custom output file paths:
@@ -155,7 +187,11 @@ python -m src.main voyage-charter-example.pdf --verbose
 
 ### Processing Time
 
-Expect approximately 10-20 seconds for processing. Gemini's native PDF support is significantly faster than image-based approaches.
+| Mode | Time | Notes |
+|------|------|-------|
+| Single-pass (Pro) | ~3 min | Most reliable |
+| Parallel batches (Pro) | ~1.5 min | Recommended |
+| Parallel batches (Flash) | ~1 min | Faster but less consistent |
 
 ---
 
@@ -217,6 +253,7 @@ ai-engineer-test/
 |--------|-------------|
 | `src/main.py` | Main entry point. Orchestrates the 5-step pipeline. |
 | `src/gemini_client.py` | Gemini API client with native PDF processing. |
+| `src/batch_processor.py` | Splits PDFs into batches, parallel processing, merge & dedupe. |
 | `src/models.py` | Pydantic models for output validation and transformation. |
 | `src/prompts.py` | Prompt templates for clause extraction. |
 
